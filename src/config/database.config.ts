@@ -1,5 +1,5 @@
 import { MongooseModuleOptions } from '@nestjs/mongoose';
 
 export const databaseConfig: MongooseModuleOptions = {
-  uri: process.env.MONGO_URI || 'mongodb://localhost:27017/gym-rpg',
+  uri: process.env.MONGO_URI || 'mongodb+srv://jocamposar:jocamposar@gymrpg.lkcrrwt.mongodb.net/?appName=gymRpg',
 };
