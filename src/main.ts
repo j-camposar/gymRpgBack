@@ -19,7 +19,7 @@ async function bootstrap() {
   });
 
   // Render asigna el puerto mediante la variable PORT
-  const port = process.env.PORT || 3001;
+  const port = process.env.PORT || 3000;
 
   // Escuchar en '0.0.0.0' es fundamental para Docker/Render/Railway
   await app.listen(port, '0.0.0.0');

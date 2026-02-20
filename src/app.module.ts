@@ -15,7 +15,18 @@ import { StateModule } from './modules/state/state.module';
 
 @Module({
   imports: [
-    MongooseModule.forRoot(databaseConfig.uri),
+    MongooseModule.forRoot(databaseConfig.uri, {
+      // Intentar una conexión limpia
+      connectionFactory: (connection) => {
+        connection.on('connected', () => {
+          console.log('✅ CONEXIÓN EXITOSA: El Arca está vinculada a la base de datos.');
+        });
+        connection.on('error', (err) => {
+          console.error('❌ ERROR DE CONEXIÓN MONGO:', err.message);
+        });
+        return connection;
+      },
+    }),
     CharacterModule,
     MuscleModule,
     TrainingModule,
