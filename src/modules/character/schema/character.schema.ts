@@ -38,7 +38,10 @@ export class Character {
   coins: number;
   @Prop()
   email: string;
+  
    @Prop()
   password: string;
+    @Prop()
+  sexo: string;
 }
 export const CharacterSchema = SchemaFactory.createForClass(Character);
