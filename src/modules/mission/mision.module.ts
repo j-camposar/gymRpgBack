@@ -5,6 +5,7 @@ import { Mision, MisionSchema } from './schema/mision.schema';
 import { CharacterMision, CharacterMisionSchema } from '../character/schema/characterMision.schema';
 import { Wallet, WalletSchema } from '../economy/schema/wallet.schema';
 import { MisionController } from './mision.controller';
+import { Character, CharacterSchema } from '../character/schema/character.schema';
 
 
 @Module({
@@ -12,6 +13,7 @@ import { MisionController } from './mision.controller';
     MongooseModule.forFeature([
       { name: Mision.name, schema: MisionSchema },
       { name: CharacterMision.name, schema: CharacterMisionSchema  },
+      { name: Character.name, schema: CharacterSchema  },
       { name: Wallet.name, schema: WalletSchema },
     ]),
   ],

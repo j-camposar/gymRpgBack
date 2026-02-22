@@ -69,8 +69,10 @@ export class TrainingService {
         const intensity = weight / estimated1RMs;
         let totalXp = 0;
         let totalFatigue = 0;
+        let totalHipertrofia=0;
         const muscleResults = [];
         const muscleReturn=[];
+     
         for (const musculos of exercise.muscles) {
 
             // buscar músculo directamente
@@ -102,7 +104,6 @@ export class TrainingService {
                 characterMuscle.xp + progression.xp,
                 characterMuscle.level,
             );
-            console.log("levelResult", levelResult)
 
             characterMuscle.level = levelResult.level;
             characterMuscle.xp = levelResult.remainingXp;
@@ -124,12 +125,14 @@ export class TrainingService {
 
             totalXp +=characterMuscle.xp ;
             totalFatigue += characterMuscle.fatigue;
-
+            totalHipertrofia += characterMuscle.hipertrofia;
+           
             muscleResults.push({
                 muscle: characterMuscle.muscleId,
                 gainedXp: progression.xp,
                 levelUp: levelResult.levelUp,
                 newLevel: characterMuscle.level,
+                fatiga: characterMuscle.fatigue
             });
             muscleReturn.push({
                 name:characterMuscle.muscleId.name,
@@ -137,6 +140,15 @@ export class TrainingService {
                 levelUp: levelResult.levelUp
             })
         }
+        character.xp= totalXp/6;
+        character.fatiga=totalFatigue/6;
+         const levelResultCharacter =
+            this.progressionService.checkLevelUp(
+                totalXp + character.xp,
+                character.level,
+            );
+        character.level= levelResultCharacter.level;
+        await character.save();
 
         await this.trainingLogModel.create({
             characterId,
@@ -165,27 +177,48 @@ export class TrainingService {
     
     }
     async descansar(characterId: string, restSeconds: number) {
-
         const muscles = await this.characterMuscleModel.find({ characterId });
 
         if (!muscles.length) {
             throw new Error('El personaje no tiene músculos');
         }
-        let fatiga=0;
+
+        let totalRecuperado = 0;
+
         for (const muscle of muscles) {
-            const fatigaActual= muscle.fatigue;
+            const fatigaAntes = muscle.fatigue;
+            
             muscle.fatigue = this.recoverDuringRest(
                 muscle.fatigue,
                 restSeconds
             );
             
-            fatiga=  muscle.fatigue -fatigaActual;
+            // Calculamos cuánto bajó la fatiga en este músculo (valor positivo)
+            totalRecuperado += (fatigaAntes - muscle.fatigue);
             await muscle.save();
         }
-        return { message: 'Descanso aplicado' ,
-            fatiga
+
+        // Actualizamos el personaje restando el total recuperado
+        const character = await this.characterModel.findById(characterId);
+        if (character) {
+            // Opción A: Si quieres que el personaje refleje el promedio real de los músculos:
+            // Primero obtenemos la suma total de fatiga de TODOS los músculos después del descanso
+            const allMuscles = await this.characterMuscleModel.find({ characterId });
+            const sumaFatigaTotal = allMuscles.reduce((acc, m) => acc + m.fatigue, 0);
+            
+            // El personaje muestra el promedio (suponiendo 6 grupos musculares principales)
+            character.fatiga = Number((sumaFatigaTotal / 6).toFixed(2)); 
+            
+            await character.save();
+        }
+
+        return { 
+            message: 'Protocolo de recuperación finalizado',
+            recuperacionTotal: Number(totalRecuperado.toFixed(2)),
+            nuevaFatigaGlobal: character?.fatiga || 0
         };
     }
+    
     recoverDuringRest(
         fatigaActual: number,
         restSeconds: number
@@ -212,5 +245,20 @@ export class TrainingService {
         // Redondeamos para evitar decimales infinitos en la DB
         return Math.max(0, Math.round((fatigaActual - recovered) * 100) / 100);
     }
+    async addXp(characterId: string, amount: number) {
+        const character = await this.characterModel.findById(characterId);
+        character.xp += amount;
 
+        // Calcular XP necesaria para el siguiente nivel
+        const xpNextLevel = 100 * Math.pow(character.level, 1.5);
+
+        if (character.xp >= xpNextLevel) {
+            character.level += 1;
+            character.xp -= xpNextLevel; // Reiniciar o mantener el remanente
+            // Aquí podrías dar una recompensa en monedas por subir de nivel
+            character.coins += character.level * 50; 
+        }
+        
+        await character.save();
+    }
 }

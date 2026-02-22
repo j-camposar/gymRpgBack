@@ -10,6 +10,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'http://localhost:3000',
+      'http://172.18.41.9:3000', 
       'http://192.168.1.132:3000', 
       'https://gym-rpg-front-fh6r.vercel.app' // Tu URL de Vercel
     ],
@@ -19,7 +20,7 @@ async function bootstrap() {
   });
 
   // Render asigna el puerto mediante la variable PORT
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 3001;
 
   // Escuchar en '0.0.0.0' es fundamental para Docker/Render/Railway
   await app.listen(port, '0.0.0.0');
