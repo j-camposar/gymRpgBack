@@ -16,12 +16,9 @@ export class GeminiService implements OnModuleInit {
       console.error("❌ ERROR ARCA: NEXT_PUBLIC_GEMINI_API_KEY no encontrada.");
       return;
     }
-    console.log(key)
     this.genAI = new GoogleGenerativeAI(key);
-    console.log(key)
-    // Usamos gemini-1.5-flash: es gratis, rápido y no da errores 404 de preview
+
     this.model = this.genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
-    console.log("🚀 Motor Gemini del Arca: ONLINE");
   }
 
   /**
@@ -59,7 +56,7 @@ export class GeminiService implements OnModuleInit {
     // SI NO VES EL CUERPO COMPLETO, responde: {"error": "Por favor, encuadra tu cuerpo en la silueta neón"}. 
     // SI VES EL CUERPO, estima % grasa y % músculo. Responde solo JSON: {"bodyFat": 0, "muscleMass": 0}`;
     const prompt = `Analiza la composición corporal en la imagen. 
-    SI VES EL CUERPO, estima % grasa y % músculo. Responde solo JSON: {"bodyFat": 0, "muscleMass": 0}`;
+     estima % grasa, % músculo y peso estimado(kg). Responde solo JSON: {"bodyFat": 0, "muscleMass": 0,"estimatedWeight":0}`;
     return this.scanImage(imgSrc, prompt);
   }
 
@@ -97,6 +94,11 @@ export class GeminiService implements OnModuleInit {
         }
     }
     Responde solo el objeto JSON puro.`;
+
+    return this.scanImage(imgSrc, prompt);
+    }
+    async createAvatar(imgSrc: string) {
+    const prompt = `genera un avatar a partir de la imagen`;
 
     return this.scanImage(imgSrc, prompt);
     }

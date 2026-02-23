@@ -3,12 +3,13 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Exercise } from "../exercise/schemas/exercise.schema";
 import { Model } from "mongoose";
 import { CharacterMuscle } from "../character/schema/characterMuscle.schema";
-import { TrainingLog } from "./schema/trainin-log.schema";
+import { TrainingLog } from "./schema/training-log.schema";
 import { ProgressionService } from "../progression/progression.service";
 import { Muscle } from "../muscle/schema/muscle.schema";
 import { MisionService } from "../mission/mision.service";
 import { Character } from "../character/schema/character.schema";
 import { CharacterExerciseStats } from "../character/schema/characterExerciseStats.schema";
+import { Training } from "./schema/training.schema";
 
 @Injectable()
 export class TrainingService {
@@ -30,6 +31,9 @@ export class TrainingService {
 
     @InjectModel(TrainingLog.name)
     private trainingLogModel: Model<TrainingLog>,
+
+    @InjectModel(Training.name)
+    private trainingModel: Model<Training>,
     
     private progressionService: ProgressionService,
 
@@ -42,7 +46,8 @@ export class TrainingService {
         exerciseId: string,
         weight: number,//peso
         reps: number,
-        difficulty: number
+        difficulty: number,
+        sessionId:string
     ) {
         const exercise = await this.exerciseModel.findById(exerciseId);
         if (!exercise) throw new Error('Ejercicio no existe');
@@ -149,7 +154,7 @@ export class TrainingService {
             );
         character.level= levelResultCharacter.level;
         await character.save();
-
+        const volume= weight * reps;
         await this.trainingLogModel.create({
             characterId,
             exerciseId,
@@ -157,6 +162,7 @@ export class TrainingService {
             reps,
             totalXp,
             fatigueGenerated: totalFatigue,
+            trainingId: sessionId,
         });
         await this.misionService.onTrainingCompleted({
             characterId,
@@ -169,6 +175,7 @@ export class TrainingService {
             totalXp: Math.round(totalXp),
             totalFatigue: Number(totalFatigue.toFixed(2)),
             leveledUpMuscles: muscleReturn,
+            totalVolume: volume
         }};
     }
     estimate1RM(peso: number, reps: number) {
@@ -260,5 +267,72 @@ export class TrainingService {
         }
         
         await character.save();
+    }
+    async createTraining(userId: string) {
+         const training= await this.trainingModel.findOne(
+            { characterId:userId, status: 'active'}, 
+            { sort: { createdAt: -1 } } // Por seguridad, tomamos el más reciente
+        );
+        if(training){
+            return { 
+                message: "Entrenamiento Creado", 
+                trainingId: training._id
+            };
+        }
+        const newTraining = await this.trainingModel.create({ 
+            userId,
+            startTime: new Date(), // Importante para calcular la duración después
+            status: 'active',      // Para saber que aún no debe resetear la fatiga
+        });
+
+        return { 
+            message: "Entrenamiento Creado", 
+            trainingId: newTraining._id // Lo devolvemos al Front para las siguientes peticiones
+        };
+    }
+    async finishWorkOut(userId: string, sessionId: string) {
+        // 1. Obtener todos los logs de esta sesión
+        const sessionLogs = await this.trainingLogModel.find({ trainingId: sessionId });
+        // 2. Calcular totales
+        const totalXpGained = sessionLogs.reduce((acc, log) => acc + log.totalXp, 0);
+        const totalVolume = sessionLogs.reduce((acc, log) => acc + (log.weight * log.reps), 0);
+
+        // 3. Capturar estado actual de músculos ANTES del reset para informar niveles
+        const musclesInfo = await this.characterMuscleModel.find({"characterId": userId }).populate('muscleId');
+        
+        // Mapeamos al formato que tu componente "WorkoutSummary" ya recorre
+        const muscleReturn = musclesInfo.map(m => ({
+            name: (m.muscleId as any).name,
+            level: m.level,
+            fatigue: m.fatigue, // Guardamos cuánta fatiga se va a limpiar
+            levelUp: false // En el cierre de sesión podrías calcular si subió globalmente, por ahora false
+        }));
+
+        // 4. Cerrar la sesión en DB
+        await this.trainingModel.findOneAndUpdate(
+            { _id: sessionId }, 
+            { 
+                $set: { 
+                    endTime: new Date(),
+                    status: 'terminado',
+                    totalXp: totalXpGained,
+                    volume: totalVolume
+                } 
+            }
+        );
+
+        // 5. El Gran Reset (Protocolo de Recuperación Total)
+        await this.characterMuscleModel.updateMany({"characterId": userId }, { $set: { fatigue: 0 } });
+        await this.characterModel.updateOne({ _id:userId }, { $set: { fatiga: 0 } });
+
+        // 6. Return formateado exactamente para StatsResume
+        return { 
+            message: "Suministros del Arca actualizados.",
+            data: { 
+                totalXp: Math.round(totalXpGained),
+                totalVolume: totalVolume,
+                leveledUpMuscles: muscleReturn 
+            }
+        };
     }
 }

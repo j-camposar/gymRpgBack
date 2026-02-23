@@ -4,7 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { TrainingController } from './training.controller';
 import { Exercise, ExerciseSchema } from '../exercise/schemas/exercise.schema';
 import { CharacterMuscle, CharacterMuscleSchema } from '../character/schema/characterMuscle.schema';
-import { TrainingLog, TrainingLogSchema } from './schema/trainin-log.schema';
+import { TrainingLog, TrainingLogSchema } from './schema/training-log.schema';
 import { TrainingService } from './training.service';
 import { ProgressionService } from '../progression/progression.service';
 import { Muscle, MuscleSchema } from '../muscle/schema/muscle.schema';
@@ -13,6 +13,7 @@ import { Mision, MisionSchema } from '../mission/schema/mision.schema';
 import { MisionModule } from '../mission/mision.module';
 import { Character, CharacterSchema } from '../character/schema/character.schema';
 import { CharacterExerciseStats, CharacterExerciseStatsSchema } from '../character/schema/characterExerciseStats.schema';
+import { Training, TrainingSchema } from './schema/training.schema';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CharacterExerciseStats, CharacterExerciseStatsSchema } from '../charact
       {name: Character.name, schema: CharacterSchema },
       {name: CharacterExerciseStats.name, schema: CharacterExerciseStatsSchema },
       { name: TrainingLog.name, schema: TrainingLogSchema },
+      { name: Training.name, schema: TrainingSchema },
       { name: Muscle.name, schema: MuscleSchema },
     ]),
     MisionModule

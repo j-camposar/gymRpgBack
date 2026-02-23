@@ -12,12 +12,14 @@ export class TrainingController {
     exerciseId: string,
     weight: number,
     reps: number,
-    difficulty: number}) {
+    difficulty: number,
+    sessionId:string}) {
     return this.trainingService.registerTraining(body.characterId,
         body.exerciseId,
         body.weight,
         body.reps,
-        body.difficulty);
+        body.difficulty,
+        body.sessionId);
   }
   @Post("/descanso")
   async descanso(@Body() body: { characterId: string,
@@ -25,5 +27,13 @@ export class TrainingController {
     return this.trainingService.descansar(body.characterId,
         body.restSeconds
         );
+  }
+  @Post("/crearEntrenamiento")
+  async crearEntrenamiento(@Body() body: { characterId: string}) {
+    return this.trainingService.createTraining(body.characterId);
+  }
+   @Post("/terminarEntrenamiento")
+  async terminarEntrenamiento(@Body() body: { characterId: string, sessionId:string}) {
+    return this.trainingService.finishWorkOut(body.characterId, body.sessionId);
   }
 }
