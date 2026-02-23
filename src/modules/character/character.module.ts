@@ -6,6 +6,7 @@ import { CharacterController } from './character.controller';
 import { Muscle, MuscleSchema } from '../muscle/schema/muscle.schema';
 import { CharacterMuscle,CharacterMuscleSchema } from './schema/characterMuscle.schema';
 import { Character, CharacterSchema } from './schema/character.schema';
+import { GeminiService } from 'src/services/gemini.service';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { Character, CharacterSchema } from './schema/character.schema';
       { name: CharacterMuscle.name, schema: CharacterMuscleSchema },
     ]),
   ],
-  providers: [CharacterService],
+  providers: [CharacterService,GeminiService],
   controllers: [CharacterController],
   exports: [CharacterService], // importante para otros módulos (muscle, training)
 })

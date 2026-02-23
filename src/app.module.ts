@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MongooseModuleOptions } from '@nestjs/mongoose';
-
+import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { databaseConfig } from './config/database.config';
 import { CharacterModule } from './modules/character/character.module';
@@ -15,6 +15,9 @@ import { StateModule } from './modules/state/state.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, 
+    }),
     MongooseModule.forRoot(databaseConfig.uri, {
       // Intentar una conexión limpia
       connectionFactory: (connection) => {
@@ -34,6 +37,7 @@ import { StateModule } from './modules/state/state.module';
     ExerciseModule,
     AuthModule,
     StateModule
+   
   ],
   controllers: [AppController],
   providers: [AppService],
