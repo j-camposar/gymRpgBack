@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Si el .env sigue dando problemas, pégala aquí para probar
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "AIzaSyDEbVeCNKnMHzfryCRw9S9zc0PLTXCty7g");
+const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY );
 
 export async function analyzeBiometrics(imgSrc: string) {
   try {
