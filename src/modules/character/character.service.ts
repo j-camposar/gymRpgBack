@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { Character,CharacterSchema } from './schema/character.schema';
 import { CharacterMuscle } from './schema/characterMuscle.schema';
 import { Muscle } from '../muscle/schema/muscle.schema';
+import { analyzeBiometrics } from '../../services/gemini.service';
 import * as bcrypt from 'bcryptjs';
 @Injectable()
 export class CharacterService {
@@ -78,5 +79,9 @@ export class CharacterService {
     }
     async viewMuscleCharacter(idUser : string){
         return this.characterMuscleModel.find({"characterId":idUser}).populate('muscleId');
+    }
+    async analisis( idUser : string,imgSrc:string){
+        const result = await analyzeBiometrics(imgSrc.replace(/^data:image\/\w+;base64,/, ""));
+        console.log(result);
     }
 }

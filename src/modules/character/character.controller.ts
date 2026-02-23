@@ -24,4 +24,9 @@ export class CharacterController {
   async viewMuscleCharacter(@Param('id') idUser: string) {
     return this.characterService.viewMuscleCharacter(idUser)??[];
   }
+    @Post('/analisis/:id')
+    async analisisBody(@Body() body: { imgSrc: string},
+    @Param('id') idUser: string ) {
+        return this.characterService.analisis(idUser, body.imgSrc);
+    }
 }
