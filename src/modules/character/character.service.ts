@@ -82,6 +82,6 @@ export class CharacterService {
     }
     async analisis( idUser : string,imgSrc:string){
         const result = await analyzeBiometrics(imgSrc.replace(/^data:image\/\w+;base64,/, ""));
-        console.log(result);
+        return result;
     }
 }
