@@ -3,7 +3,7 @@ import { Document, Types } from 'mongoose';
 import { Muscle } from 'src/modules/muscle/schema/muscle.schema';
 import { Character } from './character.schema';
 
-@Schema()
+@Schema({ timestamps: true })
 export class CharacterMuscle extends Document {
     @Prop({ type: String, ref: 'Character', required: true })
     characterId: Character;

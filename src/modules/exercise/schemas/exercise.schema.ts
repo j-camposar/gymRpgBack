@@ -1,8 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Muscle } from 'src/modules/muscle/schema/muscle.schema';
-
-@Schema()
+@Schema({ timestamps: true })
 export class Exercise extends Document {
     @Prop({ required: true })
     name: string; // Press banca, Sentadilla

@@ -37,27 +37,30 @@ export class ProgressionService {
         fatigaActual: number,
         difficulty: number
     ): number {
-        // frenamos el calculo si ya es mayor a 100
         if (fatigaActual >= 100) return 100;
 
-        const effort = reps * intensity;
-        const difficultyFactor = 0.6 + (difficulty / 10) * 0.8;
-        
-        // Mientras más cerca de 100, más difícil es generar fatiga nueva (diminishing returns)
-        // o simplemente ponemos un límite estricto.
-        const fatigueGain = effort * impacto * difficultyFactor;
-        
-        // Bonus por acumulación: entrenar cansado genera más fatiga
-        const accumulation = 1 + (fatigaActual / 100) * 0.5;
-        
+        // 1. Multiplicador de Intensidad Exponencial
+        // Si la intensidad es 1 (100% del 1RM), el factor crece rápido.
+        const intensityFactor = Math.pow(intensity, 2) * 1.5;
+
+        // 2. Multiplicador de Dificultad (Fallo)
+        // Si difficulty es 10 (al fallo), el multiplicador será 2.0x
+        const difficultyFactor = 0.5 + Math.pow(difficulty / 10, 3) * 1.5;
+
+        // 3. Cálculo de la ganancia de fatiga
+        // Añadimos una constante base de fatiga por el simple hecho de mover peso pesado
+        const baseFatigue = 5; 
+        const fatigueGain = (baseFatigue + (reps * intensityFactor)) * impacto * difficultyFactor;
+
+        // 4. Bonus por acumulación (entrenar ya estando cansado)
+        const accumulation = 1 + (fatigaActual / 100);
+
         const total = fatigaActual + (fatigueGain * accumulation);
 
-        // CAP ESTRICTO: No puede pasar de 100
         return Math.min(total, 100);
     }
     calculateFatiguePenalty(fatigaActual: number): number {
-        if (fatigaActual >= 100) return 0;
-        return Math.max(0.2, 1 - fatigaActual / 100);
+        return Math.max(0.4, 1 - (fatigaActual / 100));
     }
     calculateHypertrophy(
         xp: number,

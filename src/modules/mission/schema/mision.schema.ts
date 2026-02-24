@@ -4,7 +4,7 @@ import { MissionConfig } from '../interface/mision.interface';
 
 export type MissionType = 'DAILY' | 'WEEKLY';
 
-@Schema()
+@Schema({ timestamps: true })
 export class Mision extends Document {
   @Prop({ required: true })
   code: string;

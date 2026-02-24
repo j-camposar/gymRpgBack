@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Exercise } from "../exercise/schemas/exercise.schema";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import { CharacterMuscle } from "../character/schema/characterMuscle.schema";
 import { TrainingLog } from "./schema/training-log.schema";
 import { ProgressionService } from "../progression/progression.service";
@@ -10,6 +10,7 @@ import { MisionService } from "../mission/mision.service";
 import { Character } from "../character/schema/character.schema";
 import { CharacterExerciseStats } from "../character/schema/characterExerciseStats.schema";
 import { Training } from "./schema/training.schema";
+import { TrainingDescanso } from "./schema/training-descanso";
 
 @Injectable()
 export class TrainingService {
@@ -31,6 +32,9 @@ export class TrainingService {
 
     @InjectModel(TrainingLog.name)
     private trainingLogModel: Model<TrainingLog>,
+
+    @InjectModel(TrainingDescanso.name)
+    private trainingDescansoModel: Model<TrainingDescanso>,
 
     @InjectModel(Training.name)
     private trainingModel: Model<Training>,
@@ -145,24 +149,27 @@ export class TrainingService {
                 levelUp: levelResult.levelUp
             })
         }
-        character.xp= totalXp/6;
-        character.fatiga=totalFatigue/6;
-         const levelResultCharacter =
+        character.xp= totalXp/11;
+        character.fatiga+=totalFatigue/11;
+        const levelResultCharacter =
             this.progressionService.checkLevelUp(
                 totalXp + character.xp,
                 character.level,
-            );
+        );
         character.level= levelResultCharacter.level;
         await character.save();
         const volume= weight * reps;
+        const calories = this.calculateCalories(weight, reps, intensity, character.peso,character.fatiga ,difficulty);
         await this.trainingLogModel.create({
             characterId,
             exerciseId,
             weight,
             reps,
             totalXp,
+            difficulty,
             fatigueGenerated: totalFatigue,
             trainingId: sessionId,
+            caloriesBurned:calories
         });
         await this.misionService.onTrainingCompleted({
             characterId,
@@ -175,7 +182,8 @@ export class TrainingService {
             totalXp: Math.round(totalXp),
             totalFatigue: Number(totalFatigue.toFixed(2)),
             leveledUpMuscles: muscleReturn,
-            totalVolume: volume
+            totalVolume: volume,
+            calories: calories
         }};
     }
     estimate1RM(peso: number, reps: number) {
@@ -213,12 +221,20 @@ export class TrainingService {
             const allMuscles = await this.characterMuscleModel.find({ characterId });
             const sumaFatigaTotal = allMuscles.reduce((acc, m) => acc + m.fatigue, 0);
             
-            // El personaje muestra el promedio (suponiendo 6 grupos musculares principales)
-            character.fatiga = Number((sumaFatigaTotal / 6).toFixed(2)); 
+            // El personaje muestra el promedio (suponiendo 11 grupos musculares principales)
+            character.fatiga = Number((sumaFatigaTotal / 11).toFixed(2)); 
             
             await character.save();
         }
-
+        const training= await this.trainingModel.findOne(
+            { status: 'active'}, 
+        );
+        await this.trainingDescansoModel.create({
+            characterId,
+            "trainingId":training._id,
+            segundos:restSeconds,
+            fatigaReducida: character.fatiga 
+        })
         return { 
             message: 'Protocolo de recuperación finalizado',
             recuperacionTotal: Number(totalRecuperado.toFixed(2)),
@@ -283,6 +299,7 @@ export class TrainingService {
             userId,
             startTime: new Date(), // Importante para calcular la duración después
             status: 'active',      // Para saber que aún no debe resetear la fatiga
+            characterId: userId
         });
 
         return { 
@@ -296,9 +313,25 @@ export class TrainingService {
         // 2. Calcular totales
         const totalXpGained = sessionLogs.reduce((acc, log) => acc + log.totalXp, 0);
         const totalVolume = sessionLogs.reduce((acc, log) => acc + (log.weight * log.reps), 0);
+        const calories = sessionLogs.reduce((acc, log) => acc + (log.caloriesBurned), 0);
 
+        // Sacamos los IDs de los ejercicios sin repetir
+        const exerciseIds = [...new Set(sessionLogs.map(log => log.exerciseId))];
+        
+        // Buscamos los detalles de esos ejercicios para saber qué músculos tocan
+        const exercises = await this.exerciseModel.find({ _id: { $in: exerciseIds } });
+        
+        // Aplanamos todos los muscleId involucrados en la sesión
+        const muscleIdsWorked = [...new Set(
+            exercises.flatMap(ex => ex.muscles.map(m => m.muscleId))
+        )];
         // 3. Capturar estado actual de músculos ANTES del reset para informar niveles
-        const musclesInfo = await this.characterMuscleModel.find({"characterId": userId }).populate('muscleId');
+        const musclesInfo = await this.characterMuscleModel
+        .find({ 
+            characterId: userId, 
+            muscleId: { $in: muscleIdsWorked } 
+        })
+        .populate('muscleId', 'name');
         
         // Mapeamos al formato que tu componente "WorkoutSummary" ya recorre
         const muscleReturn = musclesInfo.map(m => ({
@@ -331,8 +364,68 @@ export class TrainingService {
             data: { 
                 totalXp: Math.round(totalXpGained),
                 totalVolume: totalVolume,
-                leveledUpMuscles: muscleReturn 
+                leveledUpMuscles: muscleReturn,
+                calories:calories
             }
         };
+    }
+    async findAllSession(sessionId: string) {
+        const logs = await this.trainingLogModel.find({ trainingId:sessionId })
+            .sort({ createdAt: -1 }) 
+            .populate('exerciseId', 'name') 
+            .exec();
+
+        return logs.map(log => {
+            const logObj = log.toObject();
+            
+            // Casteamos exerciseId como un objeto que tiene name
+            const exerciseData = logObj.exerciseId as unknown as { name: string, _id: string };
+
+            return {
+                _id: logObj._id,
+                weight: logObj.weight,
+                reps: logObj.reps,
+                totalXp: logObj.totalXp,
+                quality: logObj.quality,
+                fatigueGenerated: logObj.fatigueGenerated,
+                difficulty:logObj.difficulty,
+                // Ahora TS no se quejará de .name
+                exerciseName: exerciseData?.name || 'Ejercicio Desconocido',
+                exerciseId: exerciseData?._id ,
+                calories:logObj.caloriesBurned
+            };
+        });
+    }
+    calculateCalories(
+        peso: number, 
+        reps: number, 
+        intensity: number, // % del 1RM (ej: 0.8)
+        pesoCorporal: number,
+        fatigaActual: number,
+        dificultadSencida: number // El valor del 1 al 10 que ingresa el usuario
+    ): number {
+        const durationInMinutes = (reps * 4) / 60;
+        
+        // 1. Multiplicador de Intensidad (Carga física real)
+        const intensityEffect = Math.pow(intensity, 1.5) * 10;
+        const intensityMET = 3.5 + intensityEffect; 
+
+        // 2. Multiplicador de Esfuerzo Percibido (Carga mental/nerviosa)
+        // Un 10 añade un bono de esfuerzo adicional del 20%
+        const effortMultiplier = 0.8 + (dificultadSencida / 10) * 0.4;
+
+        // 3. Multiplicador de Fatiga (Costo de degradación)
+        const fatigueMultiplier = 1 + (fatigaActual / 100) * 0.4;
+
+        // 4. Cálculo Base Metabólico
+        let caloriesBase = (intensityMET * 3.5 * pesoCorporal / 200) * durationInMinutes;
+
+        // 5. Bono por Trabajo Mecánico (Tonelaje)
+        const workBonus = (peso * reps) / 400; 
+
+        // TOTAL: Combinamos Intensidad Real x Esfuerzo Percibido x Fatiga
+        const totalCalories = (caloriesBase * effortMultiplier * fatigueMultiplier) + workBonus;
+
+        return Number(totalCalories.toFixed(2));
     }
 }

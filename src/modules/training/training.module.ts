@@ -14,6 +14,7 @@ import { MisionModule } from '../mission/mision.module';
 import { Character, CharacterSchema } from '../character/schema/character.schema';
 import { CharacterExerciseStats, CharacterExerciseStatsSchema } from '../character/schema/characterExerciseStats.schema';
 import { Training, TrainingSchema } from './schema/training.schema';
+import { TrainingDescanso, TrainingDescansoSchema } from './schema/training-descanso';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { Training, TrainingSchema } from './schema/training.schema';
       {name: CharacterExerciseStats.name, schema: CharacterExerciseStatsSchema },
       { name: TrainingLog.name, schema: TrainingLogSchema },
       { name: Training.name, schema: TrainingSchema },
+      { name: TrainingDescanso.name, schema: TrainingDescansoSchema },
       { name: Muscle.name, schema: MuscleSchema },
     ]),
     MisionModule

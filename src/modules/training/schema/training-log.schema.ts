@@ -1,15 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-// No olvides importar el esquema de Training si necesitas tipado fuerte
-import { Training } from './training.schema';
 
 @Schema({ timestamps: true })
 export class TrainingLog extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Character', required: true })
-  characterId: string;
+  characterId: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Exercise', required: true })
-  exerciseId: string;
+  exerciseId: Types.ObjectId;
   
   // CORRECCIÓN: Usamos Types.ObjectId para que MongoDB reconozca el vínculo
   @Prop({ type: Types.ObjectId, ref: 'Training', required: true })
@@ -24,11 +22,17 @@ export class TrainingLog extends Document {
   @Prop({ default: 1 })
   quality: number; // 0–1
 
+  @Prop({ default: 1 })
+  difficulty: number; // 0–1
+  
   @Prop({ default: 0 })
   totalXp: number;
 
   @Prop({ default: 0 })
   fatigueGenerated: number;
+  
+  @Prop({ default: 0 })
+  caloriesBurned: number;
 }
 
 export const TrainingLogSchema = SchemaFactory.createForClass(TrainingLog);

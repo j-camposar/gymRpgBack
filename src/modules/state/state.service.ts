@@ -23,6 +23,7 @@ export class StateService {
     // 1. Buscamos todos los registros de músculos del personaje
         const estado = await this.characterMuscleModel
             .find({ characterId: character_id })
+            .sort({ fatigue: -1 })
             .populate('muscleId')
             .exec();
 
