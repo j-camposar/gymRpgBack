@@ -286,7 +286,7 @@ export class TrainingService {
     }
     async createTraining(userId: string) {
          const training= await this.trainingModel.findOne(
-            { characterId:userId, status: 'active'}, 
+            { "characterId":userId, status: 'active'}, 
             { sort: { createdAt: -1 } } // Por seguridad, tomamos el más reciente
         );
         if(training){
@@ -299,7 +299,7 @@ export class TrainingService {
             userId,
             startTime: new Date(), // Importante para calcular la duración después
             status: 'active',      // Para saber que aún no debe resetear la fatiga
-            characterId: userId
+            "characterId": userId
         });
 
         return { 
