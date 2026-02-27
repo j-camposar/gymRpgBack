@@ -1,11 +1,14 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { Character } from 'src/modules/character/schema/character.schema';
 
-@Schema({ timestamps: true })
+@Schema({ 
+  timestamps: true,
+  toJSON: { virtuals: true }, // Importante para que aparezcan en el JSON
+  toObject: { virtuals: true }
+})
 export class Training extends Document {
-  @Prop({ type:String, ref: 'Character' })
-  characterId: Character;
+  @Prop({ type: Types.ObjectId, ref: 'Character' })
+  characterId: Types.ObjectId;
 
   @Prop()
   startTime: Date;

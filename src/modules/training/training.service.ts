@@ -7,11 +7,11 @@ import { TrainingLog } from "./schema/training-log.schema";
 import { ProgressionService } from "../progression/progression.service";
 import { Muscle } from "../muscle/schema/muscle.schema";
 import { MisionService } from "../mission/mision.service";
-import { Character } from "../character/schema/character.schema";
+import { Character, CharacterGoal } from "../character/schema/character.schema";
 import { CharacterExerciseStats } from "../character/schema/characterExerciseStats.schema";
 import { Training } from "./schema/training.schema";
 import { TrainingDescanso } from "./schema/training-descanso";
-
+import { format } from 'date-fns';
 @Injectable()
 export class TrainingService {
   constructor(
@@ -81,7 +81,7 @@ export class TrainingService {
         let totalHipertrofia=0;
         const muscleResults = [];
         const muscleReturn=[];
-     
+        let musclesFatigue=0;
         for (const musculos of exercise.muscles) {
 
             // buscar músculo directamente
@@ -148,6 +148,9 @@ export class TrainingService {
                 level: characterMuscle.level,
                 levelUp: levelResult.levelUp
             })
+            if(characterMuscle.fatigue>8){
+                musclesFatigue++;
+            }
         }
         character.xp= totalXp/11;
         character.fatiga+=totalFatigue/11;
@@ -160,6 +163,7 @@ export class TrainingService {
         await character.save();
         const volume= weight * reps;
         const calories = this.calculateCalories(weight, reps, intensity, character.peso,character.fatiga ,difficulty);
+        const feedback=await this.feedbackCoach(difficulty, musclesFatigue, character.objetivo );
         await this.trainingLogModel.create({
             characterId,
             exerciseId,
@@ -183,7 +187,8 @@ export class TrainingService {
             totalFatigue: Number(totalFatigue.toFixed(2)),
             leveledUpMuscles: muscleReturn,
             totalVolume: volume,
-            calories: calories
+            calories: calories,
+            feedback:feedback
         }};
     }
     estimate1RM(peso: number, reps: number) {
@@ -357,7 +362,9 @@ export class TrainingService {
         // 5. El Gran Reset (Protocolo de Recuperación Total)
         await this.characterMuscleModel.updateMany({"characterId": userId }, { $set: { fatigue: 0 } });
         await this.characterModel.updateOne({ _id:userId }, { $set: { fatiga: 0 } });
-
+        const character=await this.characterModel.findOne({ _id:userId });
+        // buscamos feedback
+        const feedback=await this.feedbackCoach(0, 0, character.objetivo );
         // 6. Return formateado exactamente para StatsResume
         return { 
             message: "Suministros del Arca actualizados.",
@@ -365,7 +372,8 @@ export class TrainingService {
                 totalXp: Math.round(totalXpGained),
                 totalVolume: totalVolume,
                 leveledUpMuscles: muscleReturn,
-                calories:calories
+                calories:calories,
+                feedback:feedback
             }
         };
     }
@@ -427,5 +435,177 @@ export class TrainingService {
         const totalCalories = (caloriesBase * effortMultiplier * fatigueMultiplier) + workBonus;
 
         return Number(totalCalories.toFixed(2));
+    }
+    async feedbackCoach(rpe:number, musclesFatigued:number, goal:CharacterGoal){
+        
+          // 1. Feedback Prioritario: Fallo Muscular (RPE 10)
+          if (rpe >= 10) {
+            return "¡Agotamiento crítico detectado! Descansa al menos 90-120 segundos para que tu sistema nervioso se recupere antes del próximo set.";
+          }
+        
+          // 2. Feedback por Objetivo Específico
+        switch (goal) {
+        case CharacterGoal.POWERLIFTING:
+            if (rpe < 7 ) {
+                return "La intensidad detectada es baja para Powerlifting. Para optimizar el reclutamiento de fibras, aumentemos 5 kilos en la próxima incursión.";
+            }else if(rpe > 7 || rpe <=10){
+                return "¡Wuo, excelente entrenamiento! Has mantenido el umbral de fuerza ideal. Sincronizando progreso..."
+            }
+            return "Buen control de carga. La estabilidad es clave para el movimiento total.";
+
+        case CharacterGoal.AUMENTAR_FUERZA:
+            
+            return "Mantén el rango de fuerza. Si tu persepcion de esfuerzo es bajo, es hora de subir el peso.";
+
+        case CharacterGoal.BAJAR_PESO:
+            // El volumen de trabajo afecta la quema de calorías
+            return musclesFatigued > 3 
+                ? "Gran volumen de trabajo. Estás maximizando el gasto calórico de esta sesión."
+                : "Aumenta la densidad del entrenamiento para optimizar la quema de grasa.";
+
+        case CharacterGoal.RECOMPOSICION:
+           
+            return "Equilibrio perfecto entre volumen e intensidad. Sigue así.";
+
+        default:
+            return "Sesión sincronizada. Buen trabajo, sigue procesando datos.";
+        }
+    }
+// listado de entrenamientos
+    async findSessions(start: string, end: string, character_id: string) {
+        // 1. Obtener las sesiones base
+        const sessions = await this.trainingModel
+            .find({
+                characterId: character_id,
+                createdAt: { $gte: new Date(start), $lte: new Date(end) }
+            })
+            .sort({ createdAt: -1 })
+            .exec();
+
+        if (sessions.length === 0) return [];
+
+        // 2. Extraer los IDs para la búsqueda masiva
+        const sessionIds = sessions.map(s => s._id.toString());
+
+        // 3. Query única de suma (Agrupación simple por trainingId)
+        const totals = await this.trainingLogModel.aggregate([
+            { $match: { trainingId: { $in: sessionIds } } },
+            { 
+                $group: { 
+                    _id: "$trainingId", 
+                    totalPeso: { $sum: { $multiply: ["$weight", "$reps"] } },
+                    totalXp:{$sum:  "$totalXp" },
+                    totalCalorias: { $sum: "$caloriesBurned" },
+                    fatigueGenerated: { $sum: "$fatigueGenerated" }
+                } 
+            }
+        ]);
+        // 4. Mapeo final (Unimos la sesión con sus totales)
+        return sessions.map((s: any) => {
+            // Buscamos el total que coincida con el ID de esta sesión
+            const sessionTotals = totals.find(t => t._id.toString() === s._id.toString());
+            return {
+                id: s._id,
+                fecha: s.createdAt,
+                horaInicio: s.startTime ? format(new Date(s.startTime), 'HH:mm') : '--:--',
+                horaFin: s.endTime ? format(new Date(s.endTime), 'HH:mm') : '--:--',
+                fatiga: s.fatigaGenerada || 0,
+                pesoTotal: Math.round(sessionTotals?.totalPeso || 0),
+                calorias: Math.round(sessionTotals?.totalCalorias || 0),
+                totalXp: Math.round(sessionTotals?.totalXp || 0),
+                fatigueGenerated: Math.round(sessionTotals?.fatigueGenerated || 0),
+                nombre: "Incursión Registrada"
+            };
+        });
+    }
+    // listado de ejercicios del sets
+    async findSessionHistory(training_id: string) {
+        // Buscamos todos los logs de UNA sola sesión
+        const logs = await this.trainingLogModel
+            .find({ trainingId: training_id })
+            .populate({
+                path: 'exerciseId',
+                populate: { path: 'muscles.muscleId', model: 'Muscle' }
+            })
+            .exec();
+        let estimate1RM=0;
+        // Agrupamos por ejercicio para el mapa y la lista
+        const ejercicios = logs.reduce((acc, log) => {
+            const ex = log.exerciseId as any;
+            const exId = ex._id.toString();
+            
+            if (!acc[exId]) {
+                estimate1RM=0;
+                acc[exId] = {
+                    id: exId,
+                    nombre: ex.name,
+                    musculos: ex.muscles?.map((m: any) => m.muscleId?.name.toLowerCase()) || [],
+                    seriesCount: 0,
+                    cargaMax: 0,
+                };
+            }
+            acc[exId].cargaMax = Math.max(acc[exId].cargaMax, log.weight);
+            const current1RM = this.estimate1RM(log.weight, log.reps);
+            acc[exId].estimate1RM = Math.max(acc[exId].estimate1RM || 0, current1RM);
+            acc[exId].seriesCount++;
+            return acc;
+        }, {});
+
+        return Object.values(ejercicios);
+    }
+    // listado de sets 
+    async findHistoryExercise(exercise_id: string, character_id: string, training_id: string) {
+        // 1. Traemos las series de HOY para este ejercicio
+        const seriesHoy = await this.trainingLogModel
+            .find({ trainingId: training_id, exerciseId: exercise_id })
+            .sort({ createdAt: 1 })
+            .exec();
+
+        console.log(seriesHoy)
+        // 2. Buscamos la ÚLTIMA sesión anterior donde se hizo este ejercicio
+        const ultimaSesion = await this.trainingLogModel.findOne({
+            characterId: character_id,
+            exerciseId: exercise_id,
+            trainingId: { $ne: training_id }
+        })
+        .sort({ createdAt: -1 })
+        .exec();
+        console.log(ultimaSesion)
+
+        let logsAnteriores = [];
+        if (ultimaSesion) {
+            logsAnteriores = await this.trainingLogModel.find({
+                trainingId: ultimaSesion.trainingId.toString(),
+                exerciseId: exercise_id
+            })
+            .sort({ createdAt: 1 })
+            .exec();
+        }
+        console.log(ultimaSesion)
+        // 3. Mapeamos con la comparativa de peso real
+        return seriesHoy.map((log, index) => {
+            const logAnterior = logsAnteriores[index];
+            const peso = log.weight;
+            const reps = log.reps;
+            const estimacion1RM = reps > 1 ? peso / (1.0278 - (0.0278 * reps)) : peso;
+
+            let progreso = 'INICIAL';
+            if (logAnterior) {
+                if (peso > logAnterior.weight || (peso === logAnterior.weight && reps > logAnterior.reps)) {
+                    progreso = 'SUBISTE';
+                } else if (peso === logAnterior.weight && reps === logAnterior.reps) {
+                    progreso = 'ESTABLE';
+                } else {
+                    progreso = 'BAJASTE';
+                }
+            }
+
+            return {
+                peso,
+                reps,
+                estimacion1RM: Math.round(estimacion1RM * 10) / 10,
+                progreso
+            };
+        });
     }
 }

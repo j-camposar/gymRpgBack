@@ -40,4 +40,19 @@ export class TrainingController {
     async getSessionLogs(@Param('sessionId') sessionId: string) {
         return this.trainingService.findAllSession(sessionId);
     }
+    @Get('history/:start/:end/:character_id')
+    async getHistorySession(@Param('start') start: string, @Param('end') end:string, @Param('character_id') character_id: string) {
+        return this.trainingService.findSessions(start, end, character_id);
+    }
+    @Get('history/sessions/:trainingId')
+    async getSessionHistory( @Param('trainingId') trainingId: string ) {
+        return this.trainingService.findSessionHistory(trainingId);
+    }
+    @Get('history/exercise/:character_id/:exercise_id/:trainingId')
+    async getExerciseHistory(
+        @Param('character_id') character_id: string, 
+        @Param('exercise_id') exercise_id: string, 
+        @Param('trainingId') trainingId: string  ) {
+        return this.trainingService.findHistoryExercise(exercise_id, character_id,trainingId);
+    }
 }

@@ -60,46 +60,48 @@ export class GeminiService implements OnModuleInit {
     return this.scanImage(imgSrc, prompt);
   }
 
-  async analyzeEats(imgSrc: string) {
-    const prompt = `Actúa como un Bio-Analista del Arca. 
-    Analiza la imagen de la comida y extrae un informe exhaustivo.
-    Si no hay comida, responde: {"error": "Escaneo fallido: Objetivo no identificado"}.
+    async analyzeEats(imgSrc: string) {
+        const prompt = `CONTEXTO: Eres el Bio-Analista de IA del "Arca". Tu misión es identificar suministros biológicos para un superviviente en entrenamiento de alto rendimiento.
 
-    Si hay comida, devuelve ESTRICTAMENTE un JSON con esta estructura:
-    {
-        "suministro": "Nombre técnico del plato",
-        "analisis_visual": {
-        "ingredientes": ["lista", "detallada"],
-        "peso_estimado_g": 0,
-        "metodo_coccion": "frito, vapor, etc."
-        },
-        "bio_marcadores": {
-        "calorias_totales": 0,
-        "proteinas_g": 0,
-        "carbs_g": 0,
-        "grasas_g": 0,
-        "fibra_g": 0,
-        "azucares_g": 0
-        },
-        "micronutrientes_clave": ["vitaminas", "minerales detectables"],
-        "alertas": {
-        "alergenos_probables": [],
-        "indice_glucemico": "Bajo/Medio/Alto",
-        "procesamiento": "Ultra-procesado/Natural/Minimamente procesado"
-        },
-        "rpg_stats": {
-        "buff_principal": "Energía/Recuperación/Fuerza",
-        "puntos_de_vida_recuperados": 0,
-        "calidad_suministro": "A/B/C/D"
+        INSTRUCCIONES DE ESCANEO:
+        1. Analiza la imagen y detecta proporciones. Usa los cubiertos o el plato como referencia de escala para estimar el peso en gramos.
+        2. Calcula los macros basándote en densidades nutricionales estándar.
+        3. Sé crítico: si ves ultra-procesados, reduce la "calidad_suministro".
+
+        SI NO HAY COMIDA: Responde únicamente {"error": "Escaneo fallido: Objetivo no identificado en el área de escaneo"}.
+
+        SI HAY COMIDA, devuelve ESTRICTAMENTE este JSON:
+        {
+            "suministro": "Nombre técnico (Ej: Complejo de Proteína y Carbohidratos Almidonados)",
+            "analisis_visual": {
+                "ingredientes_detectados": [],
+                "peso_total_estimado_g": 0,
+                "densidad_calorica": "Baja/Media/Alta"
+            },
+            "bio_marcadores": {
+                "calorias_totales": 0,
+                "proteinas_g": 0,
+                "carbs_g": 0,
+                "grasas_g": 0,
+                "fibra_g": 0,
+                "azucares_g": 0,
+                "sodio_estimado_mg": 0
+            },
+            "rpg_stats": {
+                "buff_principal": "Nombre del Buff (Ej: Síntesis Proteica / Carga de Glucógeno)",
+                "duracion_buff_minutos": 0,
+                "calidad_suministro": "S/A/B/C/D/F",
+                "integridad_digestiva": "Puntaje 1-10 (basado en fibra y procesamiento)"
+            },
+            "comentario_ia": "Breve mensaje sarcástico o motivador del Arca sobre esta comida."
         }
-    }
-    Responde solo el objeto JSON puro.`;
+        Responde solo el objeto JSON puro, sin markdown, sin texto extra.`;
 
-    return this.scanImage(imgSrc, prompt);
+        return this.scanImage(imgSrc, prompt);
     }
     async createAvatar(imgSrc: string) {
-    const prompt = `genera un avatar a partir de la imagen`;
+        const prompt = `genera un avatar a partir de la imagen`;
 
-    return this.scanImage(imgSrc, prompt);
+        return this.scanImage(imgSrc, prompt);
     }
 }
