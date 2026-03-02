@@ -585,15 +585,15 @@ export class TrainingService {
         // 3. Mapeamos con la comparativa de peso real
         return seriesHoy.map((log, index) => {
             const logAnterior = logsAnteriores[index];
-            const peso = log.weight;
+            const weight = log.weight;
             const reps = log.reps;
-            const estimacion1RM = reps > 1 ? peso / (1.0278 - (0.0278 * reps)) : peso;
+            const estimacion1RM = reps > 1 ? weight / (1.0278 - (0.0278 * reps)) : weight;
 
             let progreso = 'INICIAL';
             if (logAnterior) {
-                if (peso > logAnterior.weight || (peso === logAnterior.weight && reps > logAnterior.reps)) {
+                if (weight > logAnterior.weight || (weight === logAnterior.weight && reps > logAnterior.reps)) {
                     progreso = 'SUBISTE';
-                } else if (peso === logAnterior.weight && reps === logAnterior.reps) {
+                } else if (weight === logAnterior.weight && reps === logAnterior.reps) {
                     progreso = 'ESTABLE';
                 } else {
                     progreso = 'BAJASTE';
@@ -601,7 +601,7 @@ export class TrainingService {
             }
 
             return {
-                peso,
+                weight,
                 reps,
                 estimacion1RM: Math.round(estimacion1RM * 10) / 10,
                 progreso
