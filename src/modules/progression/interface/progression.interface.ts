@@ -7,6 +7,7 @@ export interface ProgressionInput {
   intensity: number;
   nivelMusculo:number;
   pesoCorporal:number;
+  edad:number;
 }
 
 export interface MuscleProgressionResult {

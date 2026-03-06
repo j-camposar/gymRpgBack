@@ -82,6 +82,7 @@ export class TrainingService {
         const muscleResults = [];
         const muscleReturn=[];
         let musclesFatigue=0;
+        let grupoMusculares=[];
         for (const musculos of exercise.muscles) {
 
             // buscar músculo directamente
@@ -105,7 +106,8 @@ export class TrainingService {
                 impacto: musculos.multiplier,
                 nivelMusculo: characterMuscle.level,
                 fatigaActual: characterMuscle.fatigue,
-                pesoCorporal: character.peso
+                pesoCorporal: character.peso,
+                edad: character.edad
             });
             // 2️⃣ aplicar level up
             const levelResult =
@@ -151,6 +153,11 @@ export class TrainingService {
             if(characterMuscle.fatigue>8){
                 musclesFatigue++;
             }
+            grupoMusculares.push({
+                "nombreMusculo":characterMuscle.muscleId.name,
+                "fatigaActual":characterMuscle.fatigue
+            }); 
+           
         }
         character.xp= totalXp/11;
         character.fatiga+=totalFatigue/11;
@@ -162,7 +169,7 @@ export class TrainingService {
         character.level= levelResultCharacter.level;
         await character.save();
         const volume= weight * reps;
-        const calories = this.calculateCalories(weight, reps, intensity, character.peso,character.fatiga ,difficulty);
+        const calories = this.calculateCalories(weight, reps, intensity, character.peso, difficulty,grupoMusculares ,character.edad);
         const feedback=await this.feedbackCoach(difficulty, musclesFatigue, character.objetivo );
         await this.trainingLogModel.create({
             characterId,
@@ -198,6 +205,8 @@ export class TrainingService {
     }
     async descansar(characterId: string, restSeconds: number) {
         const muscles = await this.characterMuscleModel.find({ characterId });
+        const character = await this.characterModel.findById(characterId);
+
 
         if (!muscles.length) {
             throw new Error('El personaje no tiene músculos');
@@ -210,7 +219,8 @@ export class TrainingService {
             
             muscle.fatigue = this.recoverDuringRest(
                 muscle.fatigue,
-                restSeconds
+                restSeconds,
+                character.edad
             );
             
             // Calculamos cuánto bajó la fatiga en este músculo (valor positivo)
@@ -219,7 +229,6 @@ export class TrainingService {
         }
 
         // Actualizamos el personaje restando el total recuperado
-        const character = await this.characterModel.findById(characterId);
         if (character) {
             // Opción A: Si quieres que el personaje refleje el promedio real de los músculos:
             // Primero obtenemos la suma total de fatiga de TODOS los músculos después del descanso
@@ -227,7 +236,7 @@ export class TrainingService {
             const sumaFatigaTotal = allMuscles.reduce((acc, m) => acc + m.fatigue, 0);
             
             // El personaje muestra el promedio (suponiendo 11 grupos musculares principales)
-            character.fatiga = Number((sumaFatigaTotal / 11).toFixed(2)); 
+            character.fatiga = Number((sumaFatigaTotal / 12).toFixed(2)); 
             
             await character.save();
         }
@@ -246,31 +255,34 @@ export class TrainingService {
             nuevaFatigaGlobal: character?.fatiga || 0
         };
     }
-    
     recoverDuringRest(
         fatigaActual: number,
-        restSeconds: number
+        restSeconds: number,
+        edad: number // 28 años en tu caso
     ): number {
         if (fatigaActual <= 0) return 0;
 
         // 1. Curva base de recuperación (asintótica)
-        // En 90s recupera ~63%, en 180s ~86%
+        // t=90s -> 63%, t=180s -> 86%
         const recoveryPercent = 1 - Math.exp(-restSeconds / 90);
 
-        // 2. Penalización por fatiga alta (CORREGIDO)
-        // Usamos una proporción inversa para que nunca sea negativa
-        // Si fatiga es 150, la eficiencia es 0.5 (50%). Si es 300, es 0.33 (33%)
+        // 2. Penalización por fatiga alta (Eficiencia Metabólica)
         const fatigueEfficiency = 150 / (150 + fatigaActual);
 
-        // 3. Aplicar eficiencia al porcentaje base
+        // 3. Bio-Cap: El límite de recuperación por sesión basado en la edad
+        // A los 20 años el cap es 0.85 (85%). Cada año extra reduce un 1% la capacidad.
+        // Para ti (28 años): 0.85 - (28 - 20) * 0.01 = 0.77 (77%)
+        const baseCap = 0.85;
+        const agePenalty = Math.max(0, (edad - 20) * 0.01);
+        const bioCap = Math.max(0.4, baseCap - agePenalty); 
+
+        // 4. Aplicar eficiencia y limitar por el Bio-Cap
         const adjustedPercent = recoveryPercent * fatigueEfficiency;
+        const finalPercent = Math.min(adjustedPercent, bioCap);
 
-        // 4. Cap de recuperación por sesión (máximo 70% de la fatiga actual)
-        const cappedPercent = Math.min(adjustedPercent, 0.7);
-
-        const recovered = fatigaActual * cappedPercent;
+        const recovered = fatigaActual * finalPercent;
         
-        // Redondeamos para evitar decimales infinitos en la DB
+        // Resultado final redondeado
         return Math.max(0, Math.round((fatigaActual - recovered) * 100) / 100);
     }
     async addXp(characterId: string, amount: number) {
@@ -407,32 +419,62 @@ export class TrainingService {
     calculateCalories(
         peso: number, 
         reps: number, 
-        intensity: number, // % del 1RM (ej: 0.8)
+        intensity: number, 
         pesoCorporal: number,
-        fatigaActual: number,
-        dificultadSencida: number // El valor del 1 al 10 que ingresa el usuario
+        dificultadSencida: number,
+        musculosImplicados: {
+            nombreMusculo: string,
+            fatigaActual: number
+        }[],
+        edad: number
     ): number {
-        const durationInMinutes = (reps * 4) / 60;
+        const muscleImpact: Record<string, number> = {
+            'cuádriceps': 0.6,
+            'glúteos': 0.5,
+            'femorales': 0.4,
+            'aductor': 0.4,
+            'espalda_alta': 0.4,
+            'dorsales': 0.3,
+            'pecho': 0.25,
+            'hombros': 0.2,
+            'biceps': 0.1,
+            'tríceps': 0.1,
+            'core': 0.2,
+            'gemelos': 0.1,
+        };
+
+        let kFactor = 0.9; 
+        let sumaFatiga = 0;
+
+        // Procesamos el array para el kFactor y la Fatiga Localizada
+        musculosImplicados.forEach(m => {
+            const nombre = m.nombreMusculo.toLowerCase();
+            kFactor += (muscleImpact[nombre] || 0.1);
+            sumaFatiga += m.fatigaActual; // Sumamos las fatigas individuales
+        });
+
+        kFactor = Math.min(kFactor, 2.2);
         
-        // 1. Multiplicador de Intensidad (Carga física real)
+        // Calculamos el promedio de fatiga de los músculos que están trabajando
+        const fatigaPromedioLocal = musculosImplicados.length > 0 
+            ? sumaFatiga / musculosImplicados.length 
+            : 0;
+
+        const durationInMinutes = (reps * 4) / 60;
         const intensityEffect = Math.pow(intensity, 1.5) * 10;
-        const intensityMET = 3.5 + intensityEffect; 
+        const intensityMET = (3.5 + intensityEffect) * kFactor; 
 
-        // 2. Multiplicador de Esfuerzo Percibido (Carga mental/nerviosa)
-        // Un 10 añade un bono de esfuerzo adicional del 20%
-        const effortMultiplier = 0.8 + (dificultadSencida / 10) * 0.4;
+        // 4. Factores de Esfuerzo, Fatiga y Edad
+        const effortMultiplier = 0.7 + (Math.pow(dificultadSencida, 2) / 250);
+        const fatigueMultiplier = 1 + (fatigaPromedioLocal / 100) * 0.15; // 👈 Ahora usa la fatiga local
+        const ageFactor = 1 - (edad - 25) * 0.002;
 
-        // 3. Multiplicador de Fatiga (Costo de degradación)
-        const fatigueMultiplier = 1 + (fatigaActual / 100) * 0.4;
+        // 5. Cálculo Final
+        const caloriesBase = (intensityMET * 3.5 * pesoCorporal / 200) * durationInMinutes * ageFactor;
+        const workBonus = (peso * reps) / 350; 
 
-        // 4. Cálculo Base Metabólico
-        let caloriesBase = (intensityMET * 3.5 * pesoCorporal / 200) * durationInMinutes;
-
-        // 5. Bono por Trabajo Mecánico (Tonelaje)
-        const workBonus = (peso * reps) / 400; 
-
-        // TOTAL: Combinamos Intensidad Real x Esfuerzo Percibido x Fatiga
-        const totalCalories = (caloriesBase * effortMultiplier * fatigueMultiplier) + workBonus;
+        // Aplicamos multiplicadores a la suma de base + bono para que el RPE y Fatiga afecten todo
+        const totalCalories = (caloriesBase + workBonus) * effortMultiplier * fatigueMultiplier;
 
         return Number(totalCalories.toFixed(2));
     }
@@ -561,7 +603,6 @@ export class TrainingService {
             .sort({ createdAt: 1 })
             .exec();
 
-        console.log(seriesHoy)
         // 2. Buscamos la ÚLTIMA sesión anterior donde se hizo este ejercicio
         const ultimaSesion = await this.trainingLogModel.findOne({
             characterId: character_id,
@@ -570,7 +611,6 @@ export class TrainingService {
         })
         .sort({ createdAt: -1 })
         .exec();
-        console.log(ultimaSesion)
 
         let logsAnteriores = [];
         if (ultimaSesion) {
@@ -581,7 +621,6 @@ export class TrainingService {
             .sort({ createdAt: 1 })
             .exec();
         }
-        console.log(ultimaSesion)
         // 3. Mapeamos con la comparativa de peso real
         return seriesHoy.map((log, index) => {
             const logAnterior = logsAnteriores[index];
@@ -599,7 +638,6 @@ export class TrainingService {
                     progreso = 'BAJASTE';
                 }
             }
-
             return {
                 weight,
                 reps,

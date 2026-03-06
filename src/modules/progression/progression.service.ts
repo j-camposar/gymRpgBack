@@ -32,32 +32,37 @@ export class ProgressionService {
 
     calculateFatigue(
         reps: number,
-        intensity: number,
-        impacto: number,
+        intensity: number, 
+        impacto: number,    // muscleImpact (ej: 0.6 pierna, 0.1 bíceps)
         fatigaActual: number,
-        difficulty: number
+        difficulty: number, // RPE (1-10)
+        edad: number
     ): number {
+        // Si ya está al límite, no sube más (Estado: AGOTADO)
         if (fatigaActual >= 100) return 100;
 
-        // 1. Multiplicador de Intensidad Exponencial
-        // Si la intensidad es 1 (100% del 1RM), el factor crece rápido.
-        const intensityFactor = Math.pow(intensity, 2) * 1.5;
+        // 1. Bono de Edad (A los 28 años, el factor es ~1.03)
+        // Representa el desgaste biológico mínimo.
+        const ageFactor = 1 + Math.max(0, (edad - 25) * 0.012);
 
-        // 2. Multiplicador de Dificultad (Fallo)
-        // Si difficulty es 10 (al fallo), el multiplicador será 2.0x
-        const difficultyFactor = 0.5 + Math.pow(difficulty / 10, 3) * 1.5;
+        // 2. Multiplicador de RPE (La clave del sistema)
+        // Queremos que un RPE 10 (al fallo) genere mucha más fatiga que un RPE 5.
+        // Usamos potencia para que el salto de 8 a 10 sea muy notable.
+        const rpeMultiplier = Math.pow(difficulty / 10, 2.5) * 4.0; 
+        // RPE 10 -> 4.0 | RPE 8 -> 2.29 | RPE 5 -> 0.70
 
-        // 3. Cálculo de la ganancia de fatiga
-        // Añadimos una constante base de fatiga por el simple hecho de mover peso pesado
-        const baseFatigue = 5; 
-        const fatigueGain = (baseFatigue + (reps * intensityFactor)) * impacto * difficultyFactor;
+        // 3. Cálculo de la fatiga generada en esta serie
+        // Combinamos volumen y esfuerzo relativo.
+        const gainBase = (reps * intensity * rpeMultiplier * impacto * ageFactor);
+        
+        // 4. Factor de "Fatiga sobre Fatiga" (Accumulation)
+        // A medida que te acercas a 100, el cuerpo se estresa exponencialmente más.
+        const stressMultiplier = 1 + (fatigaActual / 100);
 
-        // 4. Bonus por acumulación (entrenar ya estando cansado)
-        const accumulation = 1 + (fatigaActual / 100);
+        const nuevaFatiga = fatigaActual + (gainBase * stressMultiplier);
 
-        const total = fatigaActual + (fatigueGain * accumulation);
-
-        return Math.min(total, 100);
+        // Retornamos el valor final capado en 100
+        return Number(Math.min(nuevaFatiga, 100).toFixed(2));
     }
     calculateFatiguePenalty(fatigaActual: number): number {
         return Math.max(0.4, 1 - (fatigaActual / 100));
@@ -104,7 +109,7 @@ export class ProgressionService {
 
         // 3. Calculamos la nueva fatiga
         const nuevaFatiga = this.calculateFatigue(
-            input.reps, input.intensity, input.impacto, input.fatigaActual, input.difficulty
+            input.reps, input.intensity, input.impacto, input.fatigaActual, input.difficulty, input.edad
         );
         // 4. Hipertrofia
         const hipertrofia = this.calculateHypertrophy(xpFinal, input.fatigaActual);
