@@ -515,11 +515,14 @@ export class TrainingService {
     }
 // listado de entrenamientos
     async findSessions(start: string, end: string, character_id: string) {
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+            endDate.setHours(23, 59, 59, 999);
         // 1. Obtener las sesiones base
         const sessions = await this.trainingModel
             .find({
                 characterId: character_id,
-                createdAt: { $gte: new Date(start), $lte: new Date(end) }
+                createdAt: { $gte: startDate, $lte: endDate }
             })
             .sort({ createdAt: -1 })
             .exec();
